@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة الأكاديمية المتكامل</title>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- jsPDF و autotable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- الشريط الجانبي -->
+        <nav class="sidebar">
+            <div class="logo">🏆 أكاديمية الأبطال</div>
+            <ul>
+                <li onclick="showSection('dashboard')">📊 لوحة التحكم</li>
+                <li onclick="showSection('add-member')">👤 تسجيل / تعديل مشترك</li>
+                <li onclick="showSection('member-list')">📋 قائمة المشتركين</li>
+                <li onclick="showSection('attendance')">🕒 الحضور اليومي</li>
+                <li onclick="showSection('manage-sports')">🎾 إدارة الألعاب</li>
+                <li onclick="showSection('payments')">💰 السجل المالي</li>
+                <li onclick="showSection('alerts')">🔔 التنبيهات <span id="alert-count" class="badge">0</span></li>
+                <li onclick="showSection('settings')">⚙️ الإعدادات والنسخ</li>
+                <li><button id="themeBtn" class="btn-theme">🌙 الوضع الداكن</button></li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <!-- لوحة التحكم (مع إضافة رسم بياني جديد) -->
+            <section id="dashboard" class="active">
+                <h1>الإحصائيات العامة</h1>
+                <div class="stats-grid">
+                    <div class="card card-blue"><h3>إجمالي المشتركين</h3><p id="stat-members">0</p></div>
+                    <div class="card card-green"><h3>إجمالي الإيرادات</h3><p id="stat-revenue">0</p><span>ج.م</span></div>
+                    <div class="card card-red"><h3>تنبيهات نشطة</h3><p id="stat-alerts">0</p></div>
+                    <div class="card card-orange"><h3>المتبقي إجمالاً</h3><p id="stat-remaining">0</p><span>ج.م</span></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="card">
+                        <h3>المشتركين حسب الرياضة</h3>
+                        <canvas id="chart-members-sport"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3>الإيرادات الشهرية</h3>
+                        <canvas id="chart-revenue-month"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3>الاشتراكات (منتهي/قريب/نشط)</h3>
+                        <canvas id="chart-expiry"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3>نسبة الذكور / الإناث</h3>
+                        <canvas id="chart-gender"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- تسجيل / تعديل مشترك (مع إضافة حقل النوع) -->
+            <section id="add-member">
+                <h1 id="form-title">تسجيل مشترك جديد</h1>
+                <div class="form-container">
+                    <form id="member-form">
+                        <input type="hidden" id="edit-id" value="">
+                        <div class="form-group">
+                            <input type="text" id="m-name" placeholder="اسم المشترك" required>
+                            <input type="tel" id="m-phone" placeholder="رقم الهاتف" required>
+                        </div>
+                        <div class="form-group">
+                            <label>النوع:</label>
+                            <select id="m-gender" required>
+                                <option value="">اختر النوع</option>
+                                <option value="ذكر">ذكر</option>
+                                <option value="أنثى">أنثى</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>اللعبة:</label>
+                            <select id="m-sport" onchange="calculatePlan()" required></select>
+                        </div>
+                        <div class="form-group price-grid">
+                            <div>
+                                <label>نظام التدريب:</label>
+                                <select id="m-freq" onchange="calculatePlan()">
+                                    <option value="8">8 حصص / شهر</option>
+                                    <option value="12">12 حصة / شهر</option>
+                                    <option value="16">16 حصة / شهر</option>
+                                    <option value="24">24 حصة / شهر</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>المدة:</label>
+                                <select id="m-duration" onchange="calculatePlan()">
+                                    <option value="1">شهر واحد</option>
+                                    <option value="2">شهرين</option>
+                                    <option value="3">3 شهور</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group date-row">
+                            <div><label>بداية الاشتراك:</label><input type="date" id="m-start" onchange="calculatePlan()" required></div>
+                            <div><label>نهاية الاشتراك:</label><input type="date" id="m-expiry" readonly></div>
+                        </div>
+                        <div class="price-box">الإجمالي المطلوب: <span id="m-total-price">0</span> ج.م</div>
+                        <div class="form-group">
+                            <label>المبلغ المدفوع الآن:</label>
+                            <input type="number" id="m-paid" placeholder="0" value="0" onchange="updateRemaining()">
+                            <div class="remaining-text">المتبقي: <span id="m-remaining">0</span> ج.م</div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" id="submit-btn" class="btn-primary">حفظ وطباعة الإيصال</button>
+                            <button type="button" id="cancel-edit" class="btn-secondary" style="display:none; background:#95a5a6;">إلغاء التعديل</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- قائمة المشتركين (مع إضافة عمود النوع) -->
+            <section id="member-list">
+                <h1>قائمة المشتركين</h1>
+                <div id="export-area" class="export-bar">
+                    <button onclick="exportToPDF('members')" class="btn-excel">📄 PDF</button>
+                    <button onclick="exportToExcel('members')" class="btn-excel">📊 Excel</button>
+                </div>
+                <div class="filter-bar">
+                    <input type="text" id="search-input" placeholder="🔍 بحث بالاسم أو الهاتف">
+                    <select id="filter-sport">
+                        <option value="">كل الرياضات</option>
+                    </select>
+                    <select id="filter-gender">
+                        <option value="">كل الأنواع</option>
+                        <option value="ذكر">ذكر</option>
+                        <option value="أنثى">أنثى</option>
+                    </select>
+                    <select id="filter-payment">
+                        <option value="">كل الحالات</option>
+                        <option value="paid">مدفوع كامل</option>
+                        <option value="partial">مدفوع جزئي</option>
+                        <option value="unpaid">غير مدفوع</option>
+                    </select>
+                    <select id="filter-expiry">
+                        <option value="">كل التواريخ</option>
+                        <option value="expired">منتهي</option>
+                        <option value="soon">ينتهي خلال 3 أيام</option>
+                        <option value="active">نشط</option>
+                    </select>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>النوع</th>
+                            <th>الرياضة</th>
+                            <th>نهاية الاشتراك</th>
+                            <th>المبلغ</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="member-table-body"></tbody>
+                </table>
+            </section>
+
+            <!-- كشف الحضور (مع إضافة فلتر الرياضة) -->
+            <section id="attendance">
+                <h1>كشف الحضور</h1>
+                <div class="export-bar">
+                    <button onclick="exportToPDF('attendance')" class="btn-excel">📄 PDF</button>
+                    <button onclick="exportToExcel('attendance')" class="btn-excel">📊 Excel</button>
+                </div>
+                <div class="filter-bar">
+                    <input type="date" id="att-date" onchange="renderAttendance()">
+                    <select id="att-sport-filter" onchange="renderAttendance()">
+                        <option value="">كل الألعاب</option>
+                    </select>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>الاسم</th><th>النوع</th><th>الرياضة</th><th>الحالة</th></tr>
+                    </thead>
+                    <tbody id="att-table-body"></tbody>
+                </table>
+                <button onclick="saveAttendance()" class="btn-primary">حفظ الكشف</button>
+            </section>
+
+            <!-- إدارة الألعاب (كما هي) -->
+            <section id="manage-sports">
+                <h1>إعدادات الألعاب والأسعار</h1>
+                <div class="form-container">
+                    <input type="text" id="s-name" placeholder="اسم اللعبة">
+                    <div class="price-grid">
+                        <input type="number" id="s-p8" placeholder="سعر 8 حصص">
+                        <input type="number" id="s-p12" placeholder="سعر 12 حصة">
+                        <input type="number" id="s-p16" placeholder="سعر 16 حصة">
+                        <input type="number" id="s-p24" placeholder="سعر 24 حصة">
+                    </div>
+                    <button onclick="addNewSport()" class="btn-secondary">➕ إضافة لعبة</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الرياضة</th>
+                            <th>8 حصص</th>
+                            <th>12 حصة</th>
+                            <th>16 حصة</th>
+                            <th>24 حصة</th>
+                            <th>تعديل</th>
+                            <th>حذف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sport-table-body"></tbody>
+                </table>
+                <!-- Modal تعديل الأسعار -->
+                <div id="editSportModal" class="modal">
+                    <div class="modal-content">
+                        <span class="close" onclick="closeModal()">&times;</span>
+                        <h3>تعديل أسعار اللعبة</h3>
+                        <input type="hidden" id="edit-sport-index">
+                        <input type="text" id="edit-sport-name" placeholder="اسم اللعبة" disabled>
+                        <div class="price-grid">
+                            <input type="number" id="edit-p8" placeholder="سعر 8 حصص">
+                            <input type="number" id="edit-p12" placeholder="سعر 12 حصة">
+                            <input type="number" id="edit-p16" placeholder="سعر 16 حصة">
+                            <input type="number" id="edit-p24" placeholder="سعر 24 حصة">
+                        </div>
+                        <button onclick="saveSportEdit()" class="btn-primary">حفظ التعديلات</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- سجل المدفوعات (مع إضافة فلتر الرياضة) -->
+            <section id="payments">
+                <h1>سجل المدفوعات</h1>
+                <div class="export-bar">
+                    <button onclick="exportToPDF('payments')" class="btn-excel">📄 PDF</button>
+                    <button onclick="exportToExcel('payments')" class="btn-excel">📊 Excel</button>
+                </div>
+                <div class="filter-bar">
+                    <select id="pay-sport-filter" onchange="renderPayments()">
+                        <option value="">كل الألعاب</option>
+                    </select>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>التاريخ</th><th>المشترك</th><th>اللعبة</th><th>المبلغ</th></tr>
+                    </thead>
+                    <tbody id="pay-table-body"></tbody>
+                </table>
+            </section>
+
+            <!-- التنبيهات -->
+            <section id="alerts">
+                <h1>التنبيهات الذكية</h1>
+                <button onclick="sendReminderEmail()" class="btn-primary">📧 تذكير عبر البريد</button>
+                <div id="alerts-list" class="alerts-container"></div>
+            </section>
+
+            <!-- الإعدادات -->
+            <section id="settings">
+                <h1>إدارة النظام</h1>
+                <div class="card">
+                    <h3>النسخ الاحتياطي</h3>
+                    <button onclick="exportData()" class="btn-primary">📥 تصدير بيانات JSON</button>
+                    <input type="file" id="importFile" onchange="importData(event)" accept=".json">
+                    <hr>
+                    <h3 style="color:red">⚠️ منطقة الخطر</h3>
+                    <button onclick="resetSystem()" class="btn-danger">إعادة ضبط المصنع (مسح شامل)</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- عنصر الإشعارات (Toast) -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- إيصال الطباعة -->
+    <div class="receipt-border print-only" id="receipt">
+        <h2>إيصال أكاديمية الأبطال</h2>
+        <hr>
+        <p>المشترك: <span id="pr-name"></span></p>
+        <p>النوع: <span id="pr-gender"></span></p>
+        <p>الرياضة: <span id="pr-sport"></span></p>
+        <p>النظام: <span id="pr-freq"></span> حصة</p>
+        <p>المدة: <span id="pr-duration"></span> شهر</p>
+        <p>تاريخ الانتهاء: <span id="pr-expiry"></span></p>
+        <h3>المبلغ المدفوع: <span id="pr-amount"></span> ج.م</h3>
+        <p>التاريخ: <span id="pr-date"></span></p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
